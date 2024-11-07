@@ -4,6 +4,8 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 
+const thaya_softwares = require("./routes/thaya_softwares")
+
 // middleware
 const corsOptions = {
     origin: "http://localhost:3000" // frontend URI (ReactJS)
@@ -25,3 +27,6 @@ mongoose.connect(process.env.MONGODB_URI).then(() => {
 app.get("/", (req, res) => {
     res.status(201).json({message: "Connected to Backend!"});
 });
+
+app.use("/thaya_softwares", thaya_softwares)
+
