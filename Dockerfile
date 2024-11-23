@@ -1,38 +1,49 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Use a base image with Node.js
+FROM node:18 AS build-stage
 
-# Set the working directory in the container
-WORKDIR /usr/src/app
+# Set the working directory for the backend
+WORKDIR /app
 
-# Install common dependencies needed for building and running both FastAPI and React applications
-RUN apt-get update && \
-    apt-get install -y nodejs npm && \
-    rm -rf /var/lib/apt/lists/*
+# Copy backend package files and install dependencies
+COPY Backend/package*.json ./
+RUN npm install
 
-# Copy the requirements files to the container
-COPY requirements.txt requirements.txt
+# Copy backend source code
+COPY Backend/ .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Build the backend
+RUN npm run build
 
-# Copy the rest of the application code into the container's workspace
-COPY Core /usr/src/app/Core
-COPY client /usr/src/app/client
+# Set up the frontend build stage
+FROM node:18 AS frontend-stage
 
-# Build the React app and store it in a separate directory
-WORKDIR /usr/src/app/client
-RUN npm ci --quiet && \
-    npx build:react
+# Set the working directory for the frontend
+WORKDIR /app/client
 
-# Move the output of the build to the parent workspace
-COPY build /usr/src/app/dist
+# Copy frontend package files and install dependencies
+COPY client/package*.json ./
+RUN npm install
 
-# Build the FastAPI application and store it in a separate directory
-WORKDIR /usr/src/app/Core
-RUN pip install fastapi uvicorn gunicorn
-RUN python -m fastapi.main:app --title "My API" > /dev/null
+# Copy frontend source code
+COPY client/ .
 
-# Create a script to start both services with pm2
-COPY entrypoint.sh entrypoint.sh
-RUN chmod +x entrypoint.sh
-ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
+# Build the frontend
+RUN npm run build
+
+# Use a production environment for the final stage
+FROM node:18 AS production-stage
+
+# Set the working directory for the final app
+WORKDIR /app
+
+# Copy the backend build and node_modules
+COPY --from=build-stage /app .
+
+# Copy the frontend build into the backend public folder
+COPY --from=frontend-stage /app/client/build ./client/build
+
+# Expose the port the app runs on
+EXPOSE 5000
+
+# Command to run the backend server
+CMD ["npm", "start"]
